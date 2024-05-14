@@ -23,7 +23,7 @@ public enum Types {
     public void function(int N, int rank, boolean print, int size, Matrix A, Matrix B, Matrix C) {
         switch (this) {
             case POINT_TO_POINT:
-                pointToPoint(N, rank, print, size, A, B, C);
+                pointToPoint(N, rank, print, size, A, B);
                 break;
             case ONE_TO_MANY:
                 oneToMany(N, rank, print, size, A, B);
@@ -40,39 +40,12 @@ public enum Types {
         }
     }
 
-    private void pointToPoint(int N, int rank, boolean print, int size, Matrix A, Matrix B, Matrix C) {
-        int rowsPerProcess = N / size;
-        double[] c = new double[N * N];
-
-        if (rank == 0) {
-            MPI.COMM_WORLD.Bcast(A.matrix, 0, N, MPI.OBJECT, 0);
-            MPI.COMM_WORLD.Bcast(B.matrix, 0, N, MPI.OBJECT, 0);
-        } else {
-            MPI.COMM_WORLD.Recv(A.matrix, 0, N, MPI.OBJECT, 0, 0);
-            MPI.COMM_WORLD.Recv(B.matrix, 0, N, MPI.OBJECT, 0, 0);
-        }
-
-        for (int i = rank * rowsPerProcess; i < (rank + 1) * rowsPerProcess; i++) {
-            for (int j = 0; j < N; j++) {
-                for (int k = 0; k < N; k++) {
-                    c[i * N + j] += A.matrix[i][k] * B.matrix[k][j];
-                }
-            }
-        }
-
-        if (rank != 0) {
-            MPI.COMM_WORLD.Send(c, 0, c.length, MPI.DOUBLE, 0, 0);
-        } else {
-            for (int i = 1; i < size; i++) {
-                double[] temp = new double[N * N];
-                MPI.COMM_WORLD.Recv(temp, 0, temp.length, MPI.DOUBLE, i, 0);
-                for (int j = 0; j < temp.length; j++) {
-                    c[j] += temp[j];
-                }
-            }
-        }
-
-        checkResult(rank, print, C, A, B);
+    private void pointToPoint(int N, int rank, boolean print, int size, Matrix a, Matrix b) {
+        final double[] c = new double[N * N];
+        PointToPoint.multiply(rank, size, N, a, b, c);
+        final Matrix C = new Matrix(N, N);
+        C.fromArray(c);
+        checkResult(rank, print, C, a, b);
     }
 
     private void oneToMany(int n, int rank, boolean print, int size, Matrix a, Matrix b) {
@@ -119,34 +92,31 @@ public enum Types {
 
     private void manyToMany(int N, int rank, boolean print, int size, Matrix A, Matrix B, Matrix C) {
         int rowsPerProcess = N / size;
-        double[] c = new double[N * N];
+        double[] sendbuf = A.toArray();
+        double[] recvbuf = new double[rowsPerProcess * N * N];
 
-        MPI.COMM_WORLD.Bcast(A.matrix, 0, N, MPI.OBJECT, 0);
-        MPI.COMM_WORLD.Bcast(B.matrix, 0, N, MPI.OBJECT, 0);
+        // Distribute the rows of the first matrix to all processes
+        MPI.COMM_WORLD.Alltoall(sendbuf, 0, rowsPerProcess * N, MPI.DOUBLE, recvbuf, 0, rowsPerProcess * N, MPI.DOUBLE);
 
-        for (int i = rank * rowsPerProcess; i < (rank + 1) * rowsPerProcess; i++) {
+        // Broadcast the second matrix to all processes
+        double[] B_array = B.toArray();
+        MPI.COMM_WORLD.Bcast(B_array, 0, N * N, MPI.DOUBLE, 0);
+
+        // Each process computes its portion of the result matrix
+        for (int i = 0; i < rowsPerProcess; i++) {
             for (int j = 0; j < N; j++) {
                 for (int k = 0; k < N; k++) {
-                    c[i * N + j] += A.matrix[i][k] * B.matrix[k][j];
+                    C.matrix[i][j] += recvbuf[i * N + k] * B_array[k * N + j];
                 }
             }
         }
 
-        for (int i = 0; i < size; i++) {
-            if (rank != i) {
-                MPI.COMM_WORLD.Send(c, 0, c.length, MPI.DOUBLE, i, 0);
-            }
-        }
+        // Gather all portions of the result matrix back to the root process
+        double[] C_array = C.toArray();
+        MPI.COMM_WORLD.Gather(C_array, 0, rowsPerProcess * N, MPI.DOUBLE, C_array, 0, rowsPerProcess * N, MPI.DOUBLE, 0);
 
-        for (int i = 0; i < size; i++) {
-            if (rank != i) {
-                double[] temp = new double[N * N];
-                MPI.COMM_WORLD.Recv(temp, 0, temp.length, MPI.DOUBLE, i, 0);
-                for (int j = 0; j < temp.length; j++) {
-                    c[j] += temp[j];
-                }
-            }
-        }
+        // Update the result matrix with the gathered data
+        C.fromArray(C_array);
 
         checkResult(rank, print, C, A, B);
     }

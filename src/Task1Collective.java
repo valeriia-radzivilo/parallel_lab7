@@ -41,7 +41,7 @@ public class Task1Collective {
                 throw new IllegalArgumentException("Matrix size should be divisible by number of processors");
             }
             long startTime = System.currentTimeMillis();
-            for (Types type : new Types[]{Types.ONE_TO_MANY, Types.COLLECTIVE}) {
+            for (Types type : new Types[]{Types.ONE_TO_MANY, Types.COLLECTIVE, Types.POINT_TO_POINT}) {
                 if (rank == 0)
                     System.out.println("Type: " + type);
                 type.function(N, rank, PRINT_MATRICES, size, A, B, C);
