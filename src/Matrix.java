@@ -66,13 +66,22 @@ public class Matrix {
         return result;
     }
 
+    public void from2DArray(double[][] arr) {
+        if (arr.length != matrix.length || arr[0].length != matrix[0].length) {
+            throw new IllegalArgumentException("Invalid array size");
+        }
+        for (int i = 0; i < matrix.length; i++) {
+            System.arraycopy(arr[i], 0, matrix[i], 0, matrix[0].length);
+        }
+    }
+
 
     public void fromArray(double[] arr) {
         if (arr.length != matrix.length * matrix[0].length) {
             throw new IllegalArgumentException("Invalid array size");
         }
         for (int i = 0; i < matrix.length; i++) {
-            System.arraycopy(arr, i * matrix[0].length + 0, matrix[i], 0, matrix[0].length);
+            System.arraycopy(arr, i * matrix[0].length, matrix[i], 0, matrix[0].length);
         }
     }
 

@@ -29,7 +29,7 @@ public enum Types {
                 oneToMany(N, rank, print, size, A, B);
                 break;
             case MANY_TO_MANY:
-                manyToMany(N, rank, print, size, A, B, C);
+                manyToMany(N, rank, print, size, A, B);
                 break;
             case MANY_TO_ONE:
                 manyToOne(N, rank, print, size, A, B, C);
@@ -90,33 +90,25 @@ public enum Types {
         checkResult(rank, print, cc, a, b);
     }
 
-    private void manyToMany(int N, int rank, boolean print, int size, Matrix A, Matrix B, Matrix C) {
-        int rowsPerProcess = N / size;
-        double[] sendbuf = A.toArray();
-        double[] recvbuf = new double[rowsPerProcess * N * N];
+    private void manyToMany(int n, int rank, boolean print, int size, Matrix A, Matrix B) {
+        double[] a = A.toArray();
+        double[] b = B.toArray();
+        int rowsPerProcess = n / size;
+        double[] c = new double[rowsPerProcess * n];
 
-        // Distribute the rows of the first matrix to all processes
-        MPI.COMM_WORLD.Alltoall(sendbuf, 0, rowsPerProcess * N, MPI.DOUBLE, recvbuf, 0, rowsPerProcess * N, MPI.DOUBLE);
-
-        // Broadcast the second matrix to all processes
-        double[] B_array = B.toArray();
-        MPI.COMM_WORLD.Bcast(B_array, 0, N * N, MPI.DOUBLE, 0);
-
-        // Each process computes its portion of the result matrix
         for (int i = 0; i < rowsPerProcess; i++) {
-            for (int j = 0; j < N; j++) {
-                for (int k = 0; k < N; k++) {
-                    C.matrix[i][j] += recvbuf[i * N + k] * B_array[k * N + j];
+            for (int j = 0; j < n; j++) {
+                for (int k = 0; k < n; k++) {
+                    c[i * n + j] += a[(rank * rowsPerProcess + i) * n + k] * b[k * n + j];
                 }
             }
         }
 
-        // Gather all portions of the result matrix back to the root process
-        double[] C_array = C.toArray();
-        MPI.COMM_WORLD.Gather(C_array, 0, rowsPerProcess * N, MPI.DOUBLE, C_array, 0, rowsPerProcess * N, MPI.DOUBLE, 0);
+        double[] gatherBuffer = new double[n * n];
+        MPI.COMM_WORLD.Allgather(c, 0, c.length, MPI.DOUBLE, gatherBuffer, rank * rowsPerProcess * n, c.length, MPI.DOUBLE);
 
-        // Update the result matrix with the gathered data
-        C.fromArray(C_array);
+        Matrix C = new Matrix(n, n);
+        C.fromArray(gatherBuffer);
 
         checkResult(rank, print, C, A, B);
     }

@@ -7,7 +7,7 @@ public class Task1Collective {
 
     static final boolean PRINT_MATRICES = true;
 
-    static final List<Integer> sizes = List.of(4, 20
+    static final List<Integer> sizes = List.of(4, 6
 //            ,40, 100, 1000, 2000, 5000, 10000, 20000, 50000, 100000
     );
 
@@ -41,7 +41,7 @@ public class Task1Collective {
                 throw new IllegalArgumentException("Matrix size should be divisible by number of processors");
             }
             long startTime = System.currentTimeMillis();
-            for (Types type : new Types[]{Types.ONE_TO_MANY, Types.COLLECTIVE, Types.POINT_TO_POINT}) {
+            for (Types type : new Types[]{Types.ONE_TO_MANY, Types.COLLECTIVE, Types.POINT_TO_POINT, Types.MANY_TO_MANY}) {
                 if (rank == 0)
                     System.out.println("Type: " + type);
                 type.function(N, rank, PRINT_MATRICES, size, A, B, C);
