@@ -5,16 +5,17 @@ import java.util.List;
 
 public class Task1Collective {
 
-    static final boolean PRINT_MATRICES = true;
+    static final boolean PRINT_MATRICES = false;
 
     static final List<Integer> sizes = List.of(
-            2, 4
-//            1000, 2000, 5000, 10000
+//            2, 4
+            1000, 2000,
+            3000
 
 
     );
 
-    public static void main(String[] args) throws MPIException {
+    public static void main(String[] args) throws MPIException, InterruptedException {
 
         MPI.Init(args);
 
@@ -43,8 +44,13 @@ public class Task1Collective {
             if (N % size != 0) {
                 throw new IllegalArgumentException("Matrix size should be divisible by number of processors");
             }
+
+            /// TASK 1
+//            final Types[] types = new Types[]{Types.COLLECTIVE};
+            /// TASK 2
+            final Types[] types = new Types[]{Types.POINT_TO_POINT, Types.MANY_TO_ONE, Types.MANY_TO_MANY, Types.ONE_TO_MANY};
             long startTime = System.currentTimeMillis();
-            for (Types type : new Types[]{Types.ONE_TO_MANY, Types.POINT_TO_POINT, Types.MANY_TO_MANY, Types.MANY_TO_ONE}) {
+            for (Types type : types) {
                 if (rank == 0)
                     System.out.println("___________");
                 type.function(N, rank, PRINT_MATRICES, size, A, B, C);
@@ -52,7 +58,10 @@ public class Task1Collective {
                 if (rank == 0) {
                     final long endTime = System.currentTimeMillis();
                     System.out.println("Type: " + type + " - " + (endTime - startTime) + " ms - N: " + N);
+
+
                 }
+
             }
 
 

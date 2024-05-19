@@ -38,14 +38,18 @@ public enum Types {
                 collective(N, rank, print, size, A, B, C);
                 break;
         }
+        MPI.COMM_WORLD.Barrier();
     }
 
     private void pointToPoint(int N, int rank, boolean print, int size, Matrix a, Matrix b) {
         final double[] c = new double[N * N];
         PointToPoint.multiply(rank, size, N, a, b, c);
-        final Matrix C = new Matrix(N, N);
-        C.fromArray(c);
-        checkResult(rank, print, C, a, b);
+        MPI.COMM_WORLD.Barrier();
+        if (rank == 0) {
+            final Matrix C = new Matrix(N, N);
+            C.fromArray(c);
+            checkResult(rank, print, C, a, b);
+        }
     }
 
 
@@ -66,10 +70,12 @@ public enum Types {
         double[] gatherBuffer = new double[n * n];
         MPI.COMM_WORLD.Allgather(c, 0, c.length, MPI.DOUBLE, gatherBuffer, rank * rowsPerProcess * n, c.length, MPI.DOUBLE);
 
-        Matrix C = new Matrix(n, n);
-        C.fromArray(gatherBuffer);
+        if (rank == 0) {
+            Matrix C = new Matrix(n, n);
+            C.fromArray(gatherBuffer);
 
-        checkResult(rank, print, C, A, B);
+            checkResult(rank, print, C, A, B);
+        }
     }
 
     private void manyToOne(int n, int rank, boolean print, int size, Matrix A, Matrix B) {
@@ -146,14 +152,15 @@ public enum Types {
             if (print) {
                 System.out.println("Result:");
                 C.print();
+                // Check result
+                Matrix expected = A.multiply(B);
+                if (C.equals(expected)) {
+                    System.out.println("Results are correct!");
+                } else {
+                    System.out.println("Error in the result");
+                }
             }
-            // Check result
-            Matrix expected = A.multiply(B);
-            if (C.equals(expected)) {
-                System.out.println("Results are correct!");
-            } else {
-                System.out.println("Error in the result");
-            }
+
         }
     }
 }
