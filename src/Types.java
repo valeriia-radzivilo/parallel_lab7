@@ -26,13 +26,13 @@ public enum Types {
                 pointToPoint(N, rank, print, size, A, B);
                 break;
             case ONE_TO_MANY:
-                oneToMany(N, rank, print, size, A, B);
+                collective(N, rank, print, size, A, B, C);
                 break;
             case MANY_TO_MANY:
                 manyToMany(N, rank, print, size, A, B);
                 break;
             case MANY_TO_ONE:
-                manyToOne(N, rank, print, size, A, B, C);
+                manyToOne(N, rank, print, size, A, B);
                 break;
             case COLLECTIVE:
                 collective(N, rank, print, size, A, B, C);
@@ -48,47 +48,6 @@ public enum Types {
         checkResult(rank, print, C, a, b);
     }
 
-    private void oneToMany(int n, int rank, boolean print, int size, Matrix a, Matrix b) {
-        final double[] A = a.toArray();
-        final double[] B = b.toArray();
-        double[] C = new double[n * n];
-        int rowsPerProcess = n / size;
-
-        if (rank == 0) {
-            for (int dest = 1; dest < size; dest++) {
-                MPI.COMM_WORLD.Send(A, dest * rowsPerProcess * n, rowsPerProcess * n, MPI.DOUBLE, dest, 0);
-            }
-        } else {
-            MPI.COMM_WORLD.Recv(A, rank * rowsPerProcess * n, rowsPerProcess * n, MPI.DOUBLE, 0, 0);
-        }
-        for (int source = 0; source < size; source++) {
-            if (rank == source) {
-                MPI.COMM_WORLD.Send(B, 0, n * n, MPI.DOUBLE, (rank + 1) % size, 0);
-            } else if (rank == (source + 1) % size) {
-                MPI.COMM_WORLD.Recv(B, 0, n * n, MPI.DOUBLE, source, 0);
-            }
-            MPI.COMM_WORLD.Barrier();
-        }
-
-        for (int i = rank * rowsPerProcess; i < (rank + 1) * rowsPerProcess; i++) {
-            for (int j = 0; j < n; j++) {
-                for (int k = 0; k < n; k++) {
-                    C[i * n + j] += A[i * n + k] * B[k * n + j];
-                }
-            }
-        }
-        if (rank == 0) {
-            for (int source = 1; source < size; source++) {
-                MPI.COMM_WORLD.Recv(C, source * rowsPerProcess * n, rowsPerProcess * n, MPI.DOUBLE, source, 0);
-            }
-        } else {
-            MPI.COMM_WORLD.Send(C, rank * rowsPerProcess * n, rowsPerProcess * n, MPI.DOUBLE, 0, 0);
-        }
-
-        final Matrix cc = new Matrix(n, n);
-        cc.fromArray(C);
-        checkResult(rank, print, cc, a, b);
-    }
 
     private void manyToMany(int n, int rank, boolean print, int size, Matrix A, Matrix B) {
         double[] a = A.toArray();
@@ -113,32 +72,46 @@ public enum Types {
         checkResult(rank, print, C, A, B);
     }
 
-    private void manyToOne(int N, int rank, boolean print, int size, Matrix A, Matrix B, Matrix C) {
+    private void manyToOne(int n, int rank, boolean print, int size, Matrix A, Matrix B) {
+        int[] offset = new int[size];
+        int[] rows = new int[size];
+        double[][] result_matrix = new double[n][n];
 
-        int rowsPerProcess = N / size;
-        double[] c = new double[N * N];
+        int amount_for_process = n / size;
+        int extra = n % size;
 
-        for (int i = rank * rowsPerProcess; i < (rank + 1) * rowsPerProcess; i++) {
-            for (int j = 0; j < N; j++) {
-                for (int k = 0; k < N; k++) {
-                    c[i * N + j] += A.matrix[i][k] * B.matrix[k][j];
+        for (int i = 0; i < size; i++) {
+            rows[i] = i < extra ? amount_for_process + 1 : amount_for_process;
+            offset[i] = i == 0 ? 0 : offset[i - 1] + rows[i - 1];
+        }
+
+        int local_a_rows = rows[rank];
+        double[][] local_a = new double[local_a_rows][n];
+
+        MPI.COMM_WORLD.Scatterv(A.matrix, 0, rows, offset, MPI.OBJECT,
+                local_a, 0, local_a_rows, MPI.OBJECT, 0
+        );
+
+        MPI.COMM_WORLD.Bcast(B.matrix, 0, n, MPI.OBJECT, 0);
+
+        double[][] local_result_matrix_rows = new double[local_a_rows][n];
+        for (int k = 0; k < n; k++) {
+            for (int i = 0; i < local_a_rows; i++) {
+                for (int j = 0; j < n; j++) {
+                    local_result_matrix_rows[i][k] += local_a[i][j] * B.matrix[j][k];
                 }
             }
         }
 
-        if (rank != 0) {
-            MPI.COMM_WORLD.Send(c, 0, c.length, MPI.DOUBLE, 0, 0);
-        } else {
-            for (int i = 1; i < size; i++) {
-                double[] temp = new double[N * N];
-                MPI.COMM_WORLD.Recv(temp, 0, temp.length, MPI.DOUBLE, i, 0);
-                for (int j = 0; j < temp.length; j++) {
-                    c[j] += temp[j];
-                }
-            }
-
+        MPI.COMM_WORLD.Gatherv(local_result_matrix_rows, 0, local_a_rows, MPI.OBJECT,
+                result_matrix, 0, rows, offset, MPI.OBJECT,
+                0
+        );
+        if (rank == 0) {
+            Matrix C = new Matrix(result_matrix);
+            checkResult(rank, print, C, A, B);
         }
-        checkResult(rank, print, C, A, B);
+
     }
 
     private void collective(int N, int rank, boolean print, int size, Matrix A, Matrix B, Matrix C) {

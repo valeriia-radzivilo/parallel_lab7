@@ -7,8 +7,11 @@ public class Task1Collective {
 
     static final boolean PRINT_MATRICES = true;
 
-    static final List<Integer> sizes = List.of(4, 6
-//            ,40, 100, 1000, 2000, 5000, 10000, 20000, 50000, 100000
+    static final List<Integer> sizes = List.of(
+            2, 4
+//            1000, 2000, 5000, 10000
+
+
     );
 
     public static void main(String[] args) throws MPIException {
@@ -41,17 +44,17 @@ public class Task1Collective {
                 throw new IllegalArgumentException("Matrix size should be divisible by number of processors");
             }
             long startTime = System.currentTimeMillis();
-            for (Types type : new Types[]{Types.ONE_TO_MANY, Types.COLLECTIVE, Types.POINT_TO_POINT, Types.MANY_TO_MANY}) {
+            for (Types type : new Types[]{Types.ONE_TO_MANY, Types.POINT_TO_POINT, Types.MANY_TO_MANY, Types.MANY_TO_ONE}) {
                 if (rank == 0)
-                    System.out.println("Type: " + type);
+                    System.out.println("___________");
                 type.function(N, rank, PRINT_MATRICES, size, A, B, C);
 
+                if (rank == 0) {
+                    final long endTime = System.currentTimeMillis();
+                    System.out.println("Type: " + type + " - " + (endTime - startTime) + " ms - N: " + N);
+                }
+            }
 
-            }
-            if (rank == 0) {
-                final long endTime = System.currentTimeMillis();
-                System.out.println("Time taken with size " + N + " is " + (endTime - startTime) + "ms");
-            }
 
             MPI.COMM_WORLD.Barrier();
 
