@@ -5,12 +5,12 @@ import java.util.List;
 
 public class Task1Collective {
 
-    static final boolean PRINT_MATRICES = false;
+    static final boolean PRINT_MATRICES = true;
 
     static final List<Integer> sizes = List.of(
-//            2, 4
-            1000, 2000,
-            3000
+            10, 1000
+//            1000, 2000,
+//            3000
 
 
     );
@@ -46,9 +46,9 @@ public class Task1Collective {
             }
 
             /// TASK 1
-//            final Types[] types = new Types[]{Types.COLLECTIVE};
+            final Types[] types = new Types[]{Types.COLLECTIVE};
             /// TASK 2
-            final Types[] types = new Types[]{Types.POINT_TO_POINT, Types.MANY_TO_ONE, Types.MANY_TO_MANY, Types.ONE_TO_MANY};
+//            final Types[] types = new Types[]{Types.POINT_TO_POINT, Types.MANY_TO_ONE, Types.MANY_TO_MANY, Types.ONE_TO_MANY};
             long startTime = System.currentTimeMillis();
             for (Types type : types) {
                 if (rank == 0)
